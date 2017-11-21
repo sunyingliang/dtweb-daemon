@@ -16,29 +16,31 @@ class UrlValidatorTest extends Base
     #region Methods
     public function validate()
     {
-        $failedVideoIdArr = [10540,10541];
+        $failedVideoIdArr = [12178,12272];
 
         //$videoIds = '(' . implode(',', $failedVideoIdArr) . ')';
         $videoIds = implode(',', $failedVideoIdArr);
         IO::message('Video Ids: ' . $videoIds);
 
-        $sqlDeactivateVideo = "UPDATE `videos` SET `activate` = 0 WHERE `id` IN (?)";
+        $in = str_repeat('?,', count($failedVideoIdArr) - 1) . '?';
+
+        $sqlDeactivateVideo = "UPDATE `videos` SET `activate` = 0 WHERE `id` IN ($in)";
 
         if (!($stmtDeactivateVideo = $this->pdo->prepare($sqlDeactivateVideo))) {
             throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeactivateVideo . '}');
         }
 
-        if ($stmtDeactivateVideo->execute([$videoIds]) === false) {
+        if ($stmtDeactivateVideo->execute($failedVideoIdArr) === false) {
             throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeactivateVideo . '}');
         }
 
-        $sqlDeleteVideoUrl = "DELETE FROM `urls` WHERE `video_id` IN (?)";
+        $sqlDeleteVideoUrl = "DELETE FROM `urls` WHERE `video_id` IN ($in)";
 
         if (!($stmtDeleteVideoUrl = $this->pdo->prepare($sqlDeleteVideoUrl))) {
             throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeleteVideoUrl . '}');
         }
 
-        if ($stmtDeleteVideoUrl->execute([$videoIds]) === false) {
+        if ($stmtDeleteVideoUrl->execute($failedVideoIdArr) === false) {
             throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $stmtDeleteVideoUrl . '}');
         }
 
