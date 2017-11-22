@@ -163,15 +163,15 @@ class IO
             $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
             return $pdo;
-        } catch(\PDOException $e) {
+        } catch (\PDOException $e) {
             return false;
         }
     }
 
     public static function message($msg, $object = null, $die = false)
     {
-        echo '[' .  date('Y-m-d H:i:s') . ']' . $msg . PHP_EOL;
-        
+        echo '[' . date('Y-m-d H:i:s') . ']' . $msg . PHP_EOL;
+
         if (!empty($object)) {
             print_r($object);
             echo PHP_EOL;
@@ -180,5 +180,20 @@ class IO
         if ($die) {
             exit();
         }
+    }
+
+    public static function log($file, $msg)
+    {
+        if (!file_exists(LOG_DIR)) {
+            if (!mkdir(LOG_DIR, 0777)) {
+                self::message('Failed to create log directory {' . LOG_DIR . '}');
+                return;
+            }
+        }
+
+        $msg = '[' . date('Y-m-d H:i:s') . ']' . $msg . PHP_EOL;
+        $fh  = fopen(LOG_DIR . $file, 'a+');
+        fwrite($fh, $msg);
+        fclose($fh);
     }
 }

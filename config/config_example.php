@@ -6,3 +6,5 @@ define('DONKEYTUBE_CONNECTION', [
     'username'  => 'example',
     'password'  => 'example'
 ]);
+
+define('LOG_DIR', 'example');

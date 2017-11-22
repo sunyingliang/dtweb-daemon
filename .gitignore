@@ -1,5 +1,6 @@
 /.idea/
 /config/config.php
+/log/
 
 /scripts/test_*
 /classes/**/*Test.php
