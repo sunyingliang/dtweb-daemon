@@ -4,7 +4,6 @@ namespace DT\Daemon;
 
 use DT\Base;
 use DT\Common\Curl;
-use DT\Common\Exception\PDOCreationException;
 use DT\Common\Exception\PDOExecutionException;
 use DT\Common\Exception\PDOPrepareException;
 use DT\Common\IO;
@@ -98,7 +97,7 @@ class StreamdorScraper extends Base
                 IO::log('streamdor-scraper.txt', $message);
             }
 
-            // TODO Save $itemArray into db
+            // Save $itemArray into db
             if (($this->saveToDb($itemArray)) === false) {
                 $itemString = '';
                 foreach ($itemArray as $item) {
@@ -189,8 +188,6 @@ class StreamdorScraper extends Base
 
     private function saveToDb(&$items)
     {
-        // TODO save $items into db, follow the following steps
-
         // TODO for each item:
         foreach ($items as $item) {
             try {
@@ -204,25 +201,34 @@ class StreamdorScraper extends Base
                 // Save or get `country_id` from table `countries`
                 if (($countryId = $this->saveGetCountryId($item['country'])) === false) {
                     $this->pdo->rollBack();
-                    contine;
+                    continue;
                 }
 
                 // Save and get `video_id` from table `videos`
                 $item['countryId'] = $countryId;
-                if (($countryId = $this->saveGetVideoId($item)) === false) {
+                if (($videoId = $this->saveGetVideoId($item)) === false) {
                     $this->pdo->rollBack();
-                    contine;
+                    continue;
                 }
 
-                // TODO save or get `actor_id` from table `actors`, complete table `video_actors`
+                // Save or get `actor_id` from table `actors`, complete table `video_actors`
+                $item['videoId'] = $videoId;
+                if ($this->saveActorsNCompleteVideoActors($item) === false) {
+                    $this->pdo->rollBack();
+                    continue;
+                }
 
+                // Save or get `director_id` from table `directors`, complete table `video_directors`
+                if ($this->saveDirectorsNCompleteVideoDirectors($item) === false) {
+                    $this->pdo->rollBack();
+                    continue;
+                }
 
-                // TODO save or get `director_id` from table `directors`, complete table `video_directors`
-
-
-                // TODO save or get `category_id` from table `categories`, complete table `video_category`
-
-
+                // Save or get `category_id` from table `categories`, complete table `video_category`
+                if ($this->saveCategoriesNCompleteVideoCategories($item) === false) {
+                    $this->pdo->rollBack();
+                    continue;
+                }
 
                 $this->pdo->commit();
             } catch (\Exception $e) {
@@ -236,7 +242,7 @@ class StreamdorScraper extends Base
         $sql = "SELECT COUNT(*) FROM `videos` WHERE `video_name` = ?";
 
         if (($stmt = $this->pdo->prepare($sql)) === false) {
-            throw new PDOCreationException('Failed to create PDOStatement with sql {' . $sql . '}');
+            throw new PDOPrepareException('Failed to create PDOStatement with sql {' . $sql . '}');
         }
 
         if ($stmt->execute([$videoName]) === false) {
@@ -255,11 +261,13 @@ class StreamdorScraper extends Base
         $sql = "SELECT `id` FROM `countries` WHERE `country` = ?";
 
         if (($stmt = $this->pdo->prepare($sql)) === false) {
-            throw new PDOCreationException('Failed to create PDOStatement with sql {' . $sql . '}');
+            IO::message('Failed to create PDOStatement with sql {' . $sql . '}');
+            return false;
         }
 
         if ($stmt->execute([$country]) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sql . '}');
+            IO::message('Failed to execute PDOStatement with sql {' . $sql . '}');
+            return false;
         }
 
 
@@ -272,14 +280,15 @@ class StreamdorScraper extends Base
         $sql = "INSERT INTO `countries`(`country`, `created_date_id`, `changed_date_id`) VALUES (?, ?, ?)";
 
         if (($stmt = $this->pdo->prepare($sql)) === false) {
-            throw new PDOCreationException('Failed to create PDOStatement with sql {' . $sql . '}');
+            IO::message('Failed to create PDOStatement with sql {' . $sql . '}');
+            return false;
         }
 
         if ($stmt->execute([$country, $this->currentDateTime, $this->currentDateTime]) === false) {
             return false;
         }
 
-        return $this->pdo->lastInsertId;
+        return $this->pdo->lastInsertId();
     }
 
     private function saveGetVideoId(array &$item)
@@ -289,7 +298,8 @@ class StreamdorScraper extends Base
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         if (($stmt = $this->pdo->prepare($sql)) === false) {
-            throw new PDOCreationException('Failed to create PDOStatement with sql {' . $sql . '}');
+            IO::message('Failed to create PDOStatement with sql {' . $sql . '}');
+            return false;
         }
 
         $values = [
@@ -300,9 +310,176 @@ class StreamdorScraper extends Base
             return false;
         }
 
-        return $this->pdo->lastInsertId;
+        return $this->pdo->lastInsertId();
     }
 
+    private function saveActorsNCompleteVideoActors(array &$item)
+    {
+        $actorIds = [];
+
+        // Select PDOStatement
+        $sqlSelect = "SELECT `id` FROM `actors` WHERE `full_name` = ?";
+        if (($stmtSelect = $this->pdo->prepare($sqlSelect)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlSelect . '}');
+            return false;
+        }
+
+        // Insert PDOStatement
+        $sqlInsert = "INSERT INTO `actors`(`full_name`, `created_date_id`, `changed_date_id`) VALUES (?, ?, ?)";
+        if (($stmtInsert = $this->pdo->prepare($sqlInsert)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlInsert . '}');
+            return false;
+        }
+
+        foreach ($item['actors'] as $actor) {
+            // Get `actor_id` if the actor exists
+            if ($stmtSelect->execute([$actor]) === false) {
+                IO::message('Failed to execute PDOStatement with sql {' . $sqlSelect . '}');
+                return false;
+            }
+
+            $actorId = $stmtSelect->fetchColumn();
+            if ($actorId) {
+                $actorIds[] = $actorId;
+                continue;
+            }
+
+            // Insert the new actor item, and return the inserted id
+            if ($stmtInsert->execute([$actor, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+
+            $actorIds[] = $this->pdo->lastInsertId();
+        }
+
+        // Complete the many-to-many table `video_actors`
+        $sqlComplete = "INSERT INTO `video_actors`(`id`, `video_id`, `actor_id`, `video_type_id`, `created_date_id`, `changed_date_id`) 
+                        VALUES (?, ?, ?, ?, ?, ?)";
+        if (($stmtComplete = $this->pdo->prepare($sqlComplete)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlComplete . '}');
+            return false;
+        }
+
+        foreach ($actorIds as $actorId) {
+            if ($stmtComplete->execute([$item['videoId'] . '-' . $actorId, $item['videoId'], $actorId, 1, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function saveDirectorsNCompleteVideoDirectors(array &$item)
+    {
+        $directorIds = [];
+
+        // Select PDOStatement
+        $sqlSelect = "SELECT `id` FROM `directors` WHERE `full_name` = ?";
+        if (($stmtSelect = $this->pdo->prepare($sqlSelect)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlSelect . '}');
+            return false;
+        }
+
+        // Insert PDOStatement
+        $sqlInsert = "INSERT INTO `directors`(`full_name`, `created_date_id`, `changed_date_id`) VALUES (?, ?, ?)";
+        if (($stmtInsert = $this->pdo->prepare($sqlInsert)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlInsert . '}');
+            return false;
+        }
+
+        foreach ($item['directors'] as $director) {
+            // Get `actor_id` if the actor exists
+            if ($stmtSelect->execute([$director]) === false) {
+                IO::message('Failed to execute PDOStatement with sql {' . $sqlSelect . '}');
+                return false;
+            }
+
+            $directorId = $stmtSelect->fetchColumn();
+            if ($directorId) {
+                $directorIds[] = $directorId;
+                continue;
+            }
+
+            // Insert the new actor item, and return the inserted id
+            if ($stmtInsert->execute([$director, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+
+            $directorIds[] = $this->pdo->lastInsertId();
+        }
+
+        // Complete the many-to-many table `video_actors`
+        $sqlComplete = "INSERT INTO `video_directors`(`id`, `video_id`, `director_id`, `video_type_id`, `created_date_id`, `changed_date_id`) 
+                        VALUES (?, ?, ?, ?, ?, ?)";
+        if (($stmtComplete = $this->pdo->prepare($sqlComplete)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlComplete . '}');
+            return false;
+        }
+
+        foreach ($directorIds as $directorId) {
+            if ($stmtComplete->execute([$item['videoId'] . '-' . $directorId, $item['videoId'], $directorId, 1, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function saveCategoriesNCompleteVideoCategories(array &$item)
+    {
+        $categoryIds = [];
+
+        // Select PDOStatement
+        $sqlSelect = "SELECT `id` FROM `categories` WHERE `name` = ?";
+        if (($stmtSelect = $this->pdo->prepare($sqlSelect)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlSelect . '}');
+            return false;
+        }
+
+        // Insert PDOStatement
+        $sqlInsert = "INSERT INTO `categories`(`name`, `created_date_id`, `changed_date_id`) VALUES (?, ?, ?)";
+        if (($stmtInsert = $this->pdo->prepare($sqlInsert)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlInsert . '}');
+            return false;
+        }
+
+        foreach ($item['categories'] as $category) {
+            // Get `actor_id` if the actor exists
+            if ($stmtSelect->execute([$category]) === false) {
+                IO::message('Failed to execute PDOStatement with sql {' . $sqlSelect . '}');
+                return false;
+            }
+
+            $categoryId = $stmtSelect->fetchColumn();
+            if ($categoryId) {
+                $categoryIds[] = $categoryId;
+                continue;
+            }
+
+            // Insert the new actor item, and return the inserted id
+            if ($stmtInsert->execute([$category, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+
+            $categoryIds[] = $this->pdo->lastInsertId();
+        }
+
+        // Complete the many-to-many table `video_actors`
+        $sqlComplete = "INSERT INTO `video_categories`(`id`, `video_id`, `category_id`, `video_type_id`, `created_date_id`, `changed_date_id`) 
+                        VALUES (?, ?, ?, ?, ?, ?)";
+        if (($stmtComplete = $this->pdo->prepare($sqlComplete)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sqlComplete . '}');
+            return false;
+        }
+
+        foreach ($categoryIds as $categoryId) {
+            if ($stmtComplete->execute([$item['videoId'] . '-' . $categoryId, $item['videoId'], $categoryId, 1, $this->currentDateTime, $this->currentDateTime]) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     #endregion
 }
