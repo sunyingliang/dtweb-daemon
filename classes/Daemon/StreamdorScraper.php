@@ -45,10 +45,12 @@ class StreamdorScraper extends Base
                 return;
             }
 
+            /* Debug
             IO::log('page.txt', 'Page response:');
             IO::log('page.txt', print_r($response, true));
             IO::log('page.txt', PHP_EOL . PHP_EOL);
-            //return;
+            return;
+            */
 
             // Iterate each vidoe name and retrieve the video detials
             $itemCount  = count($response['Key']);
@@ -62,11 +64,13 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 IO::log('page.txt', 'Item response:');
                 IO::log('page.txt', var_export($itemDetails, true));
                 IO::log('page.txt', PHP_EOL);
+                */
 
-                // TODO Construct $itemArray for saving into db
+                // Construct $itemArray for saving into db
                 $itemArray[] = [
                     'name'        => $itemDetails['Key']['Names'][0],
                     'actors'      => $itemDetails['Key']['Actors'],
@@ -86,11 +90,12 @@ class StreamdorScraper extends Base
                 ];
             }
 
+            /* Debug
             IO::log('items.txt', 'Item response:');
             IO::log('items.txt', var_export($itemArray, true));
             IO::log('items.txt', PHP_EOL);
-
-            //return;
+            return;
+            */
 
             if (!empty($itemFailed)) {
                 $message = 'Failed to get details of item {' . implode(', ', $itemFailed) . '} in page {' . $pageNumber . '}';
@@ -189,16 +194,18 @@ class StreamdorScraper extends Base
 
     private function saveToDb(&$items)
     {
-        // TODO for each item:
+        // Loop each item and save it into db:
         foreach ($items as $item) {
             try {
                 if ($this->videoExist($item['name'])) {
                     continue;
                 }
 
+                /* Debug
                 $message = 'BeginTransaction...' . PHP_EOL . var_export($item, true);
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Wrap the insertion of video info into a transaction
                 $this->pdo->beginTransaction();
@@ -210,9 +217,11 @@ class StreamdorScraper extends Base
                 }
                 $item['countryId'] = $countryId;
 
+                /* Debug
                 $message = 'Country: ' . $item['country'] . '|contry_id: ' . $countryId;
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save and get `video_id` from table `videos`
                 if (($videoId = $this->saveGetVideoId($item)) === false) {
@@ -221,9 +230,11 @@ class StreamdorScraper extends Base
                 }
                 $item['videoId'] = $videoId;
 
+                /* Debug
                 $message = 'Finished video insertion. ';
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save videoLink into table `urls`
                 if ($this->saveUrl($item) === false) {
@@ -231,9 +242,11 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 $message = 'Finished url insertion. ';
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save imageLink into table `images`
                 if ($this->saveImage($item) === false) {
@@ -241,9 +254,11 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 $message = 'Finished image insertion. ';
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save or get `actor_id` from table `actors`, complete table `video_actors`
                 if ($this->saveActorsNCompleteVideoActors($item) === false) {
@@ -251,9 +266,11 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 $message = 'Finished actors. Actors: ' . implode(',', $item['actors']);
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save or get `director_id` from table `directors`, complete table `video_directors`
                 if ($this->saveDirectorsNCompleteVideoDirectors($item) === false) {
@@ -261,9 +278,11 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 $message = 'Finished directors. Directors: ' . implode(',', $item['directors']);
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 // Save or get `category_id` from table `categories`, complete table `video_category`
                 if ($this->saveCategoriesNCompleteVideoCategories($item) === false) {
@@ -271,12 +290,14 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                /* Debug
                 $message = 'Finished categories. Categories: ' . implode(',', $item['categories']);
                 IO::message($message);
                 IO::log('streamdor-scraper.txt', $message);
+                */
 
                 $this->pdo->commit();
-                die('Terminated!!!');
+                //die('Terminated!!!');
             } catch (\Exception $e) {
                 continue;
             }
