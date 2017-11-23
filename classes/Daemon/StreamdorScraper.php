@@ -4,6 +4,7 @@ namespace DT\Daemon;
 
 use DT\Base;
 use DT\Common\Curl;
+use DT\Common\Exception\InvalidParameterException;
 use DT\Common\Exception\PDOExecutionException;
 use DT\Common\Exception\PDOPrepareException;
 use DT\Common\IO;
@@ -21,9 +22,26 @@ class StreamdorScraper extends Base
     private $imageLinkBase = 'https://83927ddf0fb6449.blob.core.windows.net/images/';
 
 
-    public function __construct($connection = null)
+    public function __construct($type, $connection = null)
     {
-        $this->apiPage         = $this->baseUri . '/Entities?entityName=&topic=&limitPerPage=' . $this->limitPerPage . '&pageNumber=';
+        if (empty($type) || !in_array($type, ['movie', 'documentary', 'animation'])) {
+            throw new InvalidParameterException('Streamdor scraper type is not passed in correctly. e.g.: {/path/to/your-script [movie|documentary|animation]}');
+        }
+
+        switch ($type) {
+            case 'movie':
+                $this->apiPage = $this->baseUri . '/Entities?entityName=&topic=&limitPerPage=' . $this->limitPerPage . '&pageNumber=';
+                break;
+            case 'documentary':
+                $this->apiPage = $this->baseUri . '/Entities?entityName=&topic=documentary&limitPerPage=' . $this->limitPerPage . '&pageNumber=';
+                break;
+            case 'animation':
+                $this->apiPage = $this->baseUri . '/Entities?entityName=&topic=animation&limitPerPage=' . $this->limitPerPage . '&pageNumber=';
+                break;
+            default:
+                $this->apiPage = $this->baseUri . '/Entities?entityName=&topic=&limitPerPage=' . $this->limitPerPage . '&pageNumber=';
+        }
+
         $this->apiItem         = $this->baseUri . '/EntityDetails?&ignoreMediaLinkError=false&entityName=';
         $this->currentDateTime = (new \DateTime())->format('Ymd');
 
@@ -49,7 +67,6 @@ class StreamdorScraper extends Base
             IO::log('page.txt', 'Page response:');
             IO::log('page.txt', print_r($response, true));
             IO::log('page.txt', PHP_EOL . PHP_EOL);
-            return;
             */
 
             // Iterate each vidoe name and retrieve the video detials
@@ -94,7 +111,6 @@ class StreamdorScraper extends Base
             IO::log('items.txt', 'Item response:');
             IO::log('items.txt', var_export($itemArray, true));
             IO::log('items.txt', PHP_EOL);
-            return;
             */
 
             if (!empty($itemFailed)) {
@@ -297,7 +313,7 @@ class StreamdorScraper extends Base
                 */
 
                 $this->pdo->commit();
-                //die('Terminated!!!');
+                die('Terminated!!!');
             } catch (\Exception $e) {
                 continue;
             }
