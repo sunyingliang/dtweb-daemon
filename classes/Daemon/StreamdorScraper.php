@@ -17,6 +17,7 @@ class StreamdorScraper extends Base
     private $apiItem;
 
     private $currentDateTime;
+    private $videoLinkBase = 'https://www.youtube.com/embed/';
     private $imageLinkBase = 'https://83927ddf0fb6449.blob.core.windows.net/images/';
 
 
@@ -77,7 +78,7 @@ class StreamdorScraper extends Base
                     'definition'  => $itemDetails['Key']['MovieDefinition'],
                     'rate'        => $itemDetails['Key']['Rating'] * 2,
                     'views'       => $itemDetails['Key']['ProviderViews'],
-                    'videoLink'   => $itemDetails['Value']['VideoLink'],
+                    'videoLink'   => $this->videoLinkBase . $itemDetails['Value']['VideoId'],
                     'runTime'     => $itemDetails['Value']['DurationInMinutes'],
                     'source'      => $itemDetails['Value']['ProviderSource'],
                     'createdDate' => $this->currentDateTime,
@@ -195,6 +196,10 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                $message = 'BeginTransaction...' . PHP_EOL . var_export($item, true);
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
+
                 // Wrap the insertion of video info into a transaction
                 $this->pdo->beginTransaction();
 
@@ -203,20 +208,52 @@ class StreamdorScraper extends Base
                     $this->pdo->rollBack();
                     continue;
                 }
+                $item['countryId'] = $countryId;
+
+                $message = 'Country: ' . $item['country'] . '|contry_id: ' . $countryId;
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
 
                 // Save and get `video_id` from table `videos`
-                $item['countryId'] = $countryId;
                 if (($videoId = $this->saveGetVideoId($item)) === false) {
                     $this->pdo->rollBack();
                     continue;
                 }
+                $item['videoId'] = $videoId;
+
+                $message = 'Finished video insertion. ';
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
+
+                // Save videoLink into table `urls`
+                if ($this->saveUrl($item) === false) {
+                    $this->pdo->rollBack();
+                    continue;
+                }
+
+                $message = 'Finished url insertion. ';
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
+
+                // Save imageLink into table `images`
+                if ($this->saveImage($item) === false) {
+                    $this->pdo->rollBack();
+                    continue;
+                }
+
+                $message = 'Finished image insertion. ';
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
 
                 // Save or get `actor_id` from table `actors`, complete table `video_actors`
-                $item['videoId'] = $videoId;
                 if ($this->saveActorsNCompleteVideoActors($item) === false) {
                     $this->pdo->rollBack();
                     continue;
                 }
+
+                $message = 'Finished actors. Actors: ' . implode(',', $item['actors']);
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
 
                 // Save or get `director_id` from table `directors`, complete table `video_directors`
                 if ($this->saveDirectorsNCompleteVideoDirectors($item) === false) {
@@ -224,13 +261,22 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
+                $message = 'Finished directors. Directors: ' . implode(',', $item['directors']);
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
+
                 // Save or get `category_id` from table `categories`, complete table `video_category`
                 if ($this->saveCategoriesNCompleteVideoCategories($item) === false) {
                     $this->pdo->rollBack();
                     continue;
                 }
 
+                $message = 'Finished categories. Categories: ' . implode(',', $item['categories']);
+                IO::message($message);
+                IO::log('streamdor-scraper.txt', $message);
+
                 $this->pdo->commit();
+                die('Terminated!!!');
             } catch (\Exception $e) {
                 continue;
             }
@@ -304,13 +350,53 @@ class StreamdorScraper extends Base
 
         $values = [
             $item['releaseDate'], 1, $item['name'], $item['runTime'], $item['countryId'], $item['views'], $item['rate'], $this->currentDateTime, $this->currentDateTime,
-            implode(',', $item['actors']), implode(',', $item['directors']), implode(',', $item['categories']), implode(',', $item['storyline']), $item['definition']
+            implode(',', $item['actors']), implode(',', $item['directors']), implode(',', $item['categories']), $item['storyline'], $item['definition']
         ];
         if ($stmt->execute($values) === false) {
             return false;
         }
 
         return $this->pdo->lastInsertId();
+    }
+
+    private function saveUrl(array &$item)
+    {
+        $sql = "INSERT INTO `urls`(`video_id`, `url`, `created_date_id`, `changed_date_id`, `source`) 
+                VALUES (?, ?, ?, ?, ?)";
+
+        if (($stmt = $this->pdo->prepare($sql)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sql . '}');
+            return false;
+        }
+
+        $values = [
+            $item['videoId'], $item['videoLink'], $this->currentDateTime, $this->currentDateTime, $item['source']
+        ];
+        if ($stmt->execute($values) === false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function saveImage(array &$item)
+    {
+        $sql = "INSERT INTO `images`(`video_id`, `video_type_id`, `order`, `type`, `url`, `created_date_id`, `changed_date_id`) 
+                VALUES (?, 1, 1, 1, ?, ?, ?)";
+
+        if (($stmt = $this->pdo->prepare($sql)) === false) {
+            IO::message('Failed to create PDOStatement with sql {' . $sql . '}');
+            return false;
+        }
+
+        $values = [
+            $item['videoId'], $item['imageLink'], $this->currentDateTime, $this->currentDateTime
+        ];
+        if ($stmt->execute($values) === false) {
+            return false;
+        }
+
+        return true;
     }
 
     private function saveActorsNCompleteVideoActors(array &$item)
