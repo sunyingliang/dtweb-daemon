@@ -8,3 +8,8 @@ define('DONKEYTUBE_CONNECTION', [
 ]);
 
 define('LOG_DIR', 'example');
+
+// Definition of merging categories
+define('MERGING_CATEGORY', [
+    ['merge' => 1, 'to' => 2],
+]);

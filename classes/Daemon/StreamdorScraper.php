@@ -95,7 +95,7 @@ class StreamdorScraper extends Base
                     'storyline'   => $itemDetails['Key']['Excerpt'],
                     'releaseDate' => $itemDetails['Key']['Attributes']['Release']['Value'] . substr($this->currentDateTime, -4),
                     'categories'  => $itemDetails['Key']['Attributes']['Genres']['Value'],
-                    'country'     => $itemDetails['Key']['Attributes']['Country']['Value'],
+                    'country'     => isset($itemDetails['Key']['Attributes']['Country']) ? $itemDetails['Key']['Attributes']['Country']['Value'] : 'USA',   // Some item does NOT have 'Country' index, if so, use 'USA' by default
                     'definition'  => $itemDetails['Key']['MovieDefinition'],
                     'rate'        => $itemDetails['Key']['Rating'] * 2,
                     'views'       => $itemDetails['Key']['ProviderViews'],
@@ -187,7 +187,6 @@ class StreamdorScraper extends Base
 
                 $response = Curl::getResult($curl);
                 $response = json_decode($response, true);
-                print_r($response);
                 break;
             } catch (\Exception $e) {
                 continue;
@@ -313,7 +312,7 @@ class StreamdorScraper extends Base
                 */
 
                 $this->pdo->commit();
-                die('Terminated!!!');
+                //die('Terminated!!!');
             } catch (\Exception $e) {
                 continue;
             }
