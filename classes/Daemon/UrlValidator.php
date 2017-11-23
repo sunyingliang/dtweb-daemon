@@ -48,14 +48,14 @@ class UrlValidator extends Base
         $failedVideoIdArr = [];
 
         foreach ($results as $row) {
-            $valid = $this->curlUrlValidation($type, $row['url']);
+            $invalid = $this->curlUrlInvalidation($type, $row['url']);
 
-            if ($valid === -1) {
+            if ($invalid === -1) {
                 IO::message('Failed to get the content from url {' . $row['url'] . '}');
                 continue;
             }
 
-            if ($valid !== false) {
+            if ($invalid !== false) {
                 $failedVideoIdArr[] = $row['id'];
             }
         }
@@ -72,16 +72,29 @@ class UrlValidator extends Base
 
         $in = str_repeat('?,', count($failedVideoIdArr) - 1) . '?';
 
-        $sqlDeactivateVideo = "UPDATE `videos` SET `activate` = 0 WHERE `id` IN ($in)";
+        // Move invalid videos into table `videos_inact`
+        $sqlMoveToInactivateVideo = "INSERT INTO `videos_inact` SELECT * FROM `videos` WHERE `id` IN ($in)";
 
-        if (!($stmtDeactivateVideo = $this->pdo->prepare($sqlDeactivateVideo))) {
-            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeactivateVideo . '}');
+        if (!($stmtMoveToInactivateVideo = $this->pdo->prepare($sqlMoveToInactivateVideo))) {
+            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlMoveToInactivateVideo . '}');
         }
 
-        if ($stmtDeactivateVideo->execute($failedVideoIdArr) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeactivateVideo . '}');
+        if ($stmtMoveToInactivateVideo->execute($failedVideoIdArr) === false) {
+            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlMoveToInactivateVideo . '}');
         }
 
+        // Delete invalid videos from table `videos`
+        $sqlDeleteVideo = "DELETE FROM `videos` WHERE `id` IN ($in)";
+
+        if (!($stmtDeleteVideo = $this->pdo->prepare($sqlDeleteVideo))) {
+            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeleteVideo . '}');
+        }
+
+        if ($stmtDeleteVideo->execute($failedVideoIdArr) === false) {
+            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeleteVideo . '}');
+        }
+
+        // Delete invalid urls from table `urls`
         $sqlDeleteVideoUrl = "DELETE FROM `urls` WHERE `video_id` IN ($in)";
 
         if (!($stmtDeleteVideoUrl = $this->pdo->prepare($sqlDeleteVideoUrl))) {
@@ -89,14 +102,15 @@ class UrlValidator extends Base
         }
 
         if ($stmtDeleteVideoUrl->execute($failedVideoIdArr) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $stmtDeleteVideoUrl . '}');
+            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeleteVideoUrl . '}');
         }
 
         IO::message('Finished processing invalid video urls.');
     }
 
-    private function curlUrlValidation($type, $url)
+    private function curlUrlInvalidation($type, $url)
     {
+        $invalid  = false;
         $keyWords = 'depends on url type';
 
         switch ($type) {
@@ -118,7 +132,7 @@ class UrlValidator extends Base
                 $response = Curl::getResult($curl);
                 $response = str_replace(["\r\n", "\n", "\r"], '', $response);
 
-                $valid = strpos($response, $keyWords);
+                $invalid = strpos($response, $keyWords);
                 break;
             } catch (\Exception $e) {
                 continue;
@@ -126,10 +140,10 @@ class UrlValidator extends Base
         }
 
         if ($i >= $this->retry) {
-            $valid = -1;
+            $invalid = -1;
         }
 
-        return $valid;
+        return $invalid;
     }
     #endregion
 }
