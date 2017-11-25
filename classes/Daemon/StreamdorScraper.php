@@ -71,7 +71,6 @@ class StreamdorScraper extends Base
             IO::log('page.txt', PHP_EOL . PHP_EOL);
             */
 
-
             //IO::message('Page response:', $response);
 
             // Iterate each vidoe name and retrieve the video detials
@@ -211,7 +210,6 @@ class StreamdorScraper extends Base
 
     private function saveToDb(&$items)
     {
-        IO::message('Items: ', $items);
         // Loop each item and save it into db:
         foreach ($items as $item) {
             try {
