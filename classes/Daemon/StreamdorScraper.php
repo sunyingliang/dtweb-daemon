@@ -52,8 +52,8 @@ class StreamdorScraper extends Base
     public function scrap()
     {
         // Get video names in each page by retrieving the page with the specified page number
-        $pageNumber = 7;
-        $pageTotal  = 7;
+        $pageNumber = 1;
+        $pageTotal  = 1;
 
         while ($pageNumber <= $pageTotal) {
             IO::message('Scraping page {' . $pageNumber . '}...');
