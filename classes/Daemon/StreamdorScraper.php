@@ -52,8 +52,8 @@ class StreamdorScraper extends Base
     public function scrap()
     {
         // Get video names in each page by retrieving the page with the specified page number
-        $pageNumber = 1;
-        $pageTotal  = 1;
+        $pageNumber = 7;
+        $pageTotal  = 7;
 
         while ($pageNumber <= $pageTotal) {
             IO::message('Scraping page {' . $pageNumber . '}...');
@@ -70,6 +70,9 @@ class StreamdorScraper extends Base
             IO::log('page.txt', print_r($response, true));
             IO::log('page.txt', PHP_EOL . PHP_EOL);
             */
+
+
+            //IO::message('Page response:', $response);
 
             // Iterate each vidoe name and retrieve the video detials
             $itemCount  = count($response['Key']);
@@ -156,10 +159,7 @@ class StreamdorScraper extends Base
                     CURLOPT_FOLLOWLOCATION => true,
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_POST           => true,
-                    CURLOPT_HTTPHEADER     => [
-                        'Content-Type: application/json'
-                    ],
-                    CURLOPT_POSTFIELDS     => json_encode(['Language' => 'English'])
+                    CURLOPT_POSTFIELDS     => ''
                 ]);
 
                 $response = Curl::getResult($curl);
@@ -211,10 +211,12 @@ class StreamdorScraper extends Base
 
     private function saveToDb(&$items)
     {
+        IO::message('Items: ', $items);
         // Loop each item and save it into db:
         foreach ($items as $item) {
             try {
                 if ($this->videoExist($item['name'])) {
+                    IO::message('Video {' . $item['name'] . '} already existed!');
                     continue;
                 }
 
@@ -323,6 +325,11 @@ class StreamdorScraper extends Base
                 usleep(10000);
                 //die('Terminated!!!');
             } catch (\Exception $e) {
+                IO::message('Error: Failed to insert video {' . $item['name'] . '}');
+                IO::message($e->getMessage());
+                if ($this->pdo->intransaction()) {
+                    $this->pdo->rollBack();
+                }
                 continue;
             }
         }
