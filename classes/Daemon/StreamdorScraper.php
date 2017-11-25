@@ -56,6 +56,8 @@ class StreamdorScraper extends Base
         $pageTotal  = 1;
 
         while ($pageNumber <= $pageTotal) {
+            IO::message('Scraping page {' . $pageNumber . '}...');
+
             if (($response = $this->curlPage($pageNumber)) === false) {
                 $message = 'Failed to get response of page {' . $pageNumber . '} with URL: {' . $this->apiPage . $pageNumber . '}';
                 IO::message($message);
@@ -245,9 +247,10 @@ class StreamdorScraper extends Base
                 }
                 $item['videoId'] = $videoId;
 
-                /* Debug
-                $message = 'Finished video insertion. ';
+
+                $message = 'Finished video insertion {' . $videoId . '}. ';
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
@@ -257,9 +260,10 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
-                /* Debug
+
                 $message = 'Finished url insertion. ';
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
@@ -269,9 +273,10 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
-                /* Debug
+
                 $message = 'Finished image insertion. ';
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
@@ -281,9 +286,10 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
-                /* Debug
+
                 $message = 'Finished actors. Actors: ' . implode(',', $item['actors']);
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
@@ -293,9 +299,10 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
-                /* Debug
+
                 $message = 'Finished directors. Directors: ' . implode(',', $item['directors']);
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
@@ -305,13 +312,15 @@ class StreamdorScraper extends Base
                     continue;
                 }
 
-                /* Debug
+
                 $message = 'Finished categories. Categories: ' . implode(',', $item['categories']);
                 IO::message($message);
+                /* Debug
                 IO::log('streamdor-scraper.txt', $message);
                 */
 
                 $this->pdo->commit();
+                usleep(10000);
                 //die('Terminated!!!');
             } catch (\Exception $e) {
                 continue;
