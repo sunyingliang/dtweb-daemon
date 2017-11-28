@@ -52,8 +52,8 @@ class StreamdorScraper extends Base
     public function scrap()
     {
         // Get video names in each page by retrieving the page with the specified page number
-        $pageNumber = 1;
-        $pageTotal  = 1;
+        $pageNumber = 101;
+        $pageTotal  = 101;
 
         while ($pageNumber <= $pageTotal) {
             IO::message('Scraping page {' . $pageNumber . '}...');
@@ -451,6 +451,17 @@ class StreamdorScraper extends Base
 
     private function saveActorsNCompleteVideoActors(array &$item)
     {
+        // Return true if no actors need to be inserted
+        if (empty($item['actors'])) {
+            return true;
+        }
+
+        // Construct actors to be an array if it is a string
+        if (!is_array($item['actors'])) {
+            $item['actors'] = [$item['actors']];
+        }
+
+        // Start process
         $actorIds = [];
 
         // Select PDOStatement
@@ -507,6 +518,17 @@ class StreamdorScraper extends Base
 
     private function saveDirectorsNCompleteVideoDirectors(array &$item)
     {
+        // Return true if no directors need to be inserted
+        if (empty($item['directors'])) {
+            return true;
+        }
+
+        // Construct directors to be an array if it is a string
+        if (!is_array($item['directors'])) {
+            $item['directors'] = [$item['directors']];
+        }
+
+        // Start process
         $directorIds = [];
 
         // Select PDOStatement
@@ -563,6 +585,17 @@ class StreamdorScraper extends Base
 
     private function saveCategoriesNCompleteVideoCategories(array &$item)
     {
+        // Return true if no categories need to be inserted
+        if (empty($item['categories'])) {
+            return true;
+        }
+
+        // Construct categories to be an array if it is a string
+        if (!is_array($item['categories'])) {
+            $item['categories'] = [$item['categories']];
+        }
+
+        // Start process
         $categoryIds = [];
 
         // Select PDOStatement
