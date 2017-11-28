@@ -50,6 +50,8 @@ class CategoryMerging extends Base
 
         // Loop each $category tube in array MERGING_CATEGORY
         foreach (MERGING_CATEGORY as $category) {
+            IO::message('Merging category {' . $category['merge'] . '} to {' . $category['to'] . '}');
+
             $this->pdo->beginTransaction();
 
             // Fetch merge video_id and to video_id, and delete existed items with same video_id and update items with different video_id
@@ -101,6 +103,8 @@ class CategoryMerging extends Base
             }
 
             $this->pdo->commit();
+
+            IO::message('Merged successfully...');
         }
 
         IO::message('Finished merging categories!');
