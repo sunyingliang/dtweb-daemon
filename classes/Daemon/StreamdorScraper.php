@@ -92,13 +92,28 @@ class StreamdorScraper extends Base
                 */
 
                 // Construct $itemArray for saving into db
+                // Treat `actors`, `directors`, `categories` as array
+                $actors     = $itemDetails['Key']['Actors'];
+                $directors  = $itemDetails['Key']['Directors'];
+                $categories = $itemDetails['Key']['Attributes']['Genres']['Value'];
+
+                if (!empty($actors) && !in_array($actors)) {
+                    $actors = [$actors];
+                }
+                if (!empty($directors) && !in_array($directors)) {
+                    $directors = [$directors];
+                }
+                if (!empty($categories) && !in_array($categories)) {
+                    $categories = [$categories];
+                }
+
                 $itemArray[] = [
                     'name'        => $itemDetails['Key']['Names'][0],
-                    'actors'      => $itemDetails['Key']['Actors'],
-                    'directors'   => $itemDetails['Key']['Directors'],
+                    'actors'      => $actors,
+                    'directors'   => $directors,
                     'storyline'   => $itemDetails['Key']['Excerpt'],
                     'releaseDate' => $itemDetails['Key']['Attributes']['Release']['Value'] . substr($this->currentDateTime, -4),
-                    'categories'  => $itemDetails['Key']['Attributes']['Genres']['Value'],
+                    'categories'  => $categories,
                     'country'     => isset($itemDetails['Key']['Attributes']['Country']) ? $itemDetails['Key']['Attributes']['Country']['Value'] : 'USA',   // Some item does NOT have 'Country' index, if so, use 'USA' by default
                     'definition'  => $itemDetails['Key']['MovieDefinition'],
                     'rate'        => $itemDetails['Key']['Rating'] * 2,
@@ -456,11 +471,6 @@ class StreamdorScraper extends Base
             return true;
         }
 
-        // Construct actors to be an array if it is a string
-        if (!is_array($item['actors'])) {
-            $item['actors'] = [$item['actors']];
-        }
-
         // Start process
         $actorIds = [];
 
@@ -523,11 +533,6 @@ class StreamdorScraper extends Base
             return true;
         }
 
-        // Construct directors to be an array if it is a string
-        if (!is_array($item['directors'])) {
-            $item['directors'] = [$item['directors']];
-        }
-
         // Start process
         $directorIds = [];
 
@@ -588,11 +593,6 @@ class StreamdorScraper extends Base
         // Return true if no categories need to be inserted
         if (empty($item['categories'])) {
             return true;
-        }
-
-        // Construct categories to be an array if it is a string
-        if (!is_array($item['categories'])) {
-            $item['categories'] = [$item['categories']];
         }
 
         // Start process
