@@ -95,15 +95,15 @@ class StreamdorScraper extends Base
                 // Treat `actors`, `directors`, `categories` as array
                 $actors     = $itemDetails['Key']['Actors'];
                 $directors  = $itemDetails['Key']['Directors'];
-                $categories = $itemDetails['Key']['Attributes']['Genres']['Value'];
+                $categories = isset($itemDetails['Key']['Attributes']['Genres']) ? $itemDetails['Key']['Attributes']['Genres']['Value'] : null;
 
-                if (!empty($actors) && !in_array($actors)) {
+                if (!empty($actors) && !is_array($actors)) {
                     $actors = [$actors];
                 }
-                if (!empty($directors) && !in_array($directors)) {
+                if (!empty($directors) && !is_array($directors)) {
                     $directors = [$directors];
                 }
-                if (!empty($categories) && !in_array($categories)) {
+                if (!empty($categories) && !is_array($categories)) {
                     $categories = [$categories];
                 }
 
