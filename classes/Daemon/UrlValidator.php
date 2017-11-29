@@ -45,8 +45,21 @@ class UrlValidator extends Base
             return;
         }
 
-        $failedVideoIdArr = [];
+        // Move invalid videos into table `videos_inact`
+        $sqlMoveToInactivateVideo = "INSERT INTO `videos_inact` SELECT * FROM `videos` WHERE `id` = ?";
 
+        if (!($stmtMoveToInactivateVideo = $this->pdo->prepare($sqlMoveToInactivateVideo))) {
+            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlMoveToInactivateVideo . '}');
+        }
+
+        // Delete invalid videos from table `videos`
+        $sqlDeleteVideo = "DELETE FROM `videos` WHERE `id` = ?";
+
+        if (!($stmtDeleteVideo = $this->pdo->prepare($sqlDeleteVideo))) {
+            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeleteVideo . '}');
+        }
+
+        $failedVideos = false;
         foreach ($results as $row) {
             $invalid = $this->curlUrlInvalidation($type, $row['url']);
 
@@ -56,56 +69,112 @@ class UrlValidator extends Base
             }
 
             if ($invalid !== false) {
-                $failedVideoIdArr[] = $row['id'];
+                $failedVideos = true;
+
+                // Move video from `videos` to `videos_inact`, then delete it from `videos`
+                try {
+                    $this->pdo->beginTransaction();
+                    if ($stmtMoveToInactivateVideo->execute([$row['id']]) === false) {
+                        throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlMoveToInactivateVideo . '} using video id {' . $row['id'] . '}');
+                    }
+
+                    if ($stmtDeleteVideo->execute([$row['id']]) === false) {
+                        throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeleteVideo . '} using video id {' . $row['id'] . '}');
+                    }
+
+                    $this->pdo->commit();
+                } catch (\Exception $e) {
+                    if ($this->pdo->inTransaction()) {
+                        $this->pdo->rollBack();
+                    }
+
+                    IO::message($e->getMessage());
+                    continue;
+                }
+
             }
         }
 
-        // Update video and delete video url
-        if (empty($failedVideoIdArr)) {
+        if ($failedVideos === false) {
             IO::message('No invalid video url found...');
             return;
         }
 
         //IO::message('FailedVideoIds:', $failedVideoIdArr, true);
 
-        IO::message('Start processing invalid video urls:');
+        // Clean up related tables based on the batch of invalid videos
+        IO::message('Start clean up invalid videos:');
 
-        $in = str_repeat('?,', count($failedVideoIdArr) - 1) . '?';
+        try {
+            $this->pdo->beginTransaction();
 
-        // Move invalid videos into table `videos_inact`
-        $sqlMoveToInactivateVideo = "INSERT INTO `videos_inact` SELECT * FROM `videos` WHERE `id` IN ($in)";
+            // Delete invalid urls from table `urls`
+            $sqlDeleteVideoUrl = "DELETE u 
+                                  FROM `urls` u LEFT JOIN `videos` v 
+                                      ON u.video_id = v.id
+                                  WHERE v.id IS NULL";
 
-        if (!($stmtMoveToInactivateVideo = $this->pdo->prepare($sqlMoveToInactivateVideo))) {
-            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlMoveToInactivateVideo . '}');
+            if ($this->pdo->exec($sqlDeleteVideoUrl) === false) {
+                throw new PDOExecutionException('Failed to execute sql {' . $sqlDeleteVideoUrl . '}');
+            }
+
+            IO::message('Finished processing invalid video urls.');
+
+            // Delete invalid images from table `images`
+            $sqlDeleteVideoImage = "DELETE i 
+                                  FROM `images` i LEFT JOIN `videos` v 
+                                      ON i.video_id = v.id
+                                  WHERE v.id IS NULL";
+
+            if ($this->pdo->exec($sqlDeleteVideoImage) === false) {
+                throw new PDOExecutionException('Failed to execute sql {' . $sqlDeleteVideoImage . '}');
+            }
+
+            IO::message('Finished processing invalid video images.');
+
+            // Delete invalid video_actors from table `video_actors`
+            $sqlDeleteVideoActors = "DELETE a 
+                                     FROM `video_actors` a LEFT JOIN `videos` v 
+                                         ON a.video_id = v.id
+                                     WHERE v.id IS NULL";
+
+            if ($this->pdo->exec($sqlDeleteVideoActors) === false) {
+                throw new PDOExecutionException('Failed to execute sql {' . $sqlDeleteVideoActors . '}');
+            }
+
+            IO::message('Finished processing invalid video actors.');
+
+            // Delete invalid video_directors from table `video_directors`
+            $sqlDeleteVideoDirectors = "DELETE d 
+                                     FROM `video_directors` d LEFT JOIN `videos` v 
+                                         ON d.video_id = v.id
+                                     WHERE v.id IS NULL";
+
+            if ($this->pdo->exec($sqlDeleteVideoDirectors) === false) {
+                throw new PDOExecutionException('Failed to execute sql {' . $sqlDeleteVideoDirectors . '}');
+            }
+
+            IO::message('Finished processing invalid video directors.');
+
+            // Delete invalid video_categories from table `video_categories`
+            $sqlDeleteVideoCategories = "DELETE c 
+                                     FROM `video_categories` c LEFT JOIN `videos` v 
+                                         ON c.video_id = v.id
+                                     WHERE v.id IS NULL";
+
+            if ($this->pdo->exec($sqlDeleteVideoCategories) === false) {
+                throw new PDOExecutionException('Failed to execute sql {' . $sqlDeleteVideoCategories . '}');
+            }
+
+            IO::message('Finished processing invalid video categories.');
+
+        } catch (\Exception $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            IO::message($e->getMessage());
         }
-
-        if ($stmtMoveToInactivateVideo->execute($failedVideoIdArr) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlMoveToInactivateVideo . '}');
-        }
-
-        // Delete invalid videos from table `videos`
-        $sqlDeleteVideo = "DELETE FROM `videos` WHERE `id` IN ($in)";
-
-        if (!($stmtDeleteVideo = $this->pdo->prepare($sqlDeleteVideo))) {
-            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeleteVideo . '}');
-        }
-
-        if ($stmtDeleteVideo->execute($failedVideoIdArr) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeleteVideo . '}');
-        }
-
-        // Delete invalid urls from table `urls`
-        $sqlDeleteVideoUrl = "DELETE FROM `urls` WHERE `video_id` IN ($in)";
-
-        if (!($stmtDeleteVideoUrl = $this->pdo->prepare($sqlDeleteVideoUrl))) {
-            throw new PDOPrepareException('Failed to prepare PDOStatement with sql {' . $sqlDeleteVideoUrl . '}');
-        }
-
-        if ($stmtDeleteVideoUrl->execute($failedVideoIdArr) === false) {
-            throw new PDOExecutionException('Failed to execute PDOStatement with sql {' . $sqlDeleteVideoUrl . '}');
-        }
-
-        IO::message('Finished processing invalid video urls.');
     }
 
     private function curlUrlInvalidation($type, $url)

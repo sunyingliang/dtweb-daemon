@@ -21,3 +21,5 @@ try {
 } catch (\Exception $e) {
     \DT\Common\IO::message($e->getMessage(), null, true);
 }
+
+\DT\Common\IO::message('Finished checking invalid video urls!');
