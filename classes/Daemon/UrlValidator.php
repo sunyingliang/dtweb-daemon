@@ -91,7 +91,6 @@ class UrlValidator extends Base
                     IO::message($e->getMessage());
                     continue;
                 }
-
             }
         }
 
@@ -167,7 +166,6 @@ class UrlValidator extends Base
             }
 
             IO::message('Finished processing invalid video categories.');
-
         } catch (\Exception $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
